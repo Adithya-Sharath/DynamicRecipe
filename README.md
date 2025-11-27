@@ -4,7 +4,7 @@ A comprehensive Java-based Recipe and Meal Planning application with a Swing GUI
 
 ![Java](https://img.shields.io/badge/Java-11+-orange.svg)
 ![Swing](https://img.shields.io/badge/GUI-Swing-blue.svg)
-![Storage](https://img.shields.io/badge/Storage-In--Memory-green.svg)
+![Storage](https://img.shields.io/badge/Storage-MySQL-blue.svg)
 ![Recipes](https://img.shields.io/badge/Recipes-5938-brightgreen.svg)
 
 ## 🎯 Project Overview
@@ -33,14 +33,15 @@ This application is built to demonstrate all 7 modules of Java Object-Oriented P
 
 ### Prerequisites
 - Java JDK 11 or higher
-- No external dependencies required!
+- MySQL Server 8.0+ installed and running
 
-### Run the Application
+### Setup
 
-```bash
-cd DynamicRecipe
-java -cp target/classes com.recipeplanner.SimpleSwingApp
-```
+1. **Configure MySQL password** in `src/main/java/com/recipeplanner/util/DbConnectionManager.java`
+2. **Create database**: Run `database_schema.sql` in MySQL
+3. **Run application**: Double-click `run_app.bat`
+
+For detailed setup instructions, see **[MYSQL_SETUP.md](MYSQL_SETUP.md)**
 
 ### Demo Accounts
 - **Regular User:** `demo` / `demo123`
@@ -74,6 +75,7 @@ DynamicRecipe/
 │   │   └── RecipeService.java
 │   │
 │   ├── util/                         # Utilities
+│   │   ├── DbConnectionManager.java  # MySQL connection manager
 │   │   ├── PasswordHasher.java
 │   │   ├── InMemoryDataSeeder.java
 │   │   └── CSVRecipeLoader.java
@@ -172,10 +174,11 @@ mvn exec:java -Dexec.mainClass="com.recipeplanner.SimpleSwingApp"
 
 ## 📊 Data Storage
 
-- **Storage Type:** In-Memory (No database required)
-- **Collections:** ArrayList, HashMap, LinkedHashMap
-- **Data Persistence:** Session-based (resets on restart)
-- **Recipe Source:** CSV file with 5,938 Indian recipes
+- **Storage Type:** MySQL Database (persistent)
+- **Users & Ingredients:** In-Memory (ArrayList, HashMap)
+- **Recipes:** MySQL with JDBC
+- **Data Persistence:** Permanent (recipes survive restarts)
+- **Recipe Source:** CSV file loaded once into MySQL (5,938 recipes)
 
 ## 🤝 Contributing
 

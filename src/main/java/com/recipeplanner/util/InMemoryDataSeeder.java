@@ -1,6 +1,7 @@
 package com.recipeplanner.util;
 
 import com.recipeplanner.model.*;
+import com.recipeplanner.repository.RecipeRepository;
 import com.recipeplanner.repository.RepositoryManager;
 
 /**
@@ -22,25 +23,63 @@ public class InMemoryDataSeeder {
     }
     
     /**
-     * Seeds all initial data including demo user and sample recipes.
+     * Seeds all initial data including demo users and loads recipes from MySQL.
+     * Auto-loads CSV recipes into database on first run.
      * Demonstrates object creation and manipulation (Module 2).
      */
     public void seedAllData() {
-        System.out.println("=== Seeding In-Memory Data ===");
+        System.out.println("=== Initializing Data ===");
+        
+        // Test database connection first
+        if (!DbConnectionManager.testConnection()) {
+            System.err.println("\n⚠️  WARNING: MySQL database connection failed!");
+            System.err.println("The application will not work properly without database access.");
+            System.err.println("Please check DbConnectionManager.java for setup instructions.\n");
+            return;
+        }
+        
+        System.out.println("✓ Database connection successful");
         
         // Create demo users (demonstrates polymorphism - Module 5)
         createDemoUsers();
         
-        // Create sample ingredients
+        // Create sample ingredients (in-memory)
         createSampleIngredients();
         
-        // Create sample recipes
-        createSampleRecipes();
+        // Load recipes from CSV into MySQL (only on first run)
+        loadRecipesFromCsv();
         
-        System.out.println("Data seeding complete!");
+        System.out.println("\n=== Data Initialization Complete ===");
         System.out.println("- Users: " + repositoryManager.getUserRepository().count());
         System.out.println("- Ingredients: " + repositoryManager.getIngredientRepository().count());
-        System.out.println("- Recipes: " + repositoryManager.getRecipeRepository().count());
+        System.out.println("- Recipes in MySQL: " + repositoryManager.getRecipeRepository().count());
+    }
+    
+    /**
+     * Loads recipes from CSV into MySQL database.
+     * Only runs on first application start when database is empty.
+     */
+    private void loadRecipesFromCsv() {
+        RecipeRepository recipeRepo = repositoryManager.getRecipeRepository();
+        
+        // Check if database already has recipes
+        int existingCount = recipeRepo.count();
+        
+        if (existingCount > 0) {
+            System.out.println("✓ Database already contains " + existingCount + " recipes");
+            return;
+        }
+        
+        // Database is empty - load from CSV
+        System.out.println("\nDatabase is empty - loading recipes from CSV...");
+        System.out.println("This is a one-time operation and may take a minute...");
+        
+        long startTime = System.currentTimeMillis();
+        int loadedCount = CSVRecipeLoader.loadRecipesFromCSV(recipeRepo);
+        long endTime = System.currentTimeMillis();
+        
+        System.out.println("✓ Successfully loaded " + loadedCount + " recipes into MySQL");
+        System.out.println("  Time taken: " + (endTime - startTime) / 1000.0 + " seconds");
     }
     
     /**
@@ -117,9 +156,9 @@ public class InMemoryDataSeeder {
         // Add ingredients to recipe
         paneerRecipe.setRawIngredientsText("paneer, tomatoes, onions, cream, ghee, garam masala, turmeric");
         
-        // Add structured ingredients
-        Ingredient paneerIng = repositoryManager.getIngredientRepository().findByName("paneer").orElse(new Ingredient("paneer"));
-        paneerRecipe.addIngredient(new IngredientQuantity(paneerIng, new Measurement(250, "g")));
+        // Add structured ingredients (commented out - using rawIngredientsText instead)
+        // Ingredient paneerIng = repositoryManager.getIngredientRepository().findByName("paneer").orElse(new Ingredient("paneer"));
+        // paneerRecipe.addIngredient(new IngredientQuantity(paneerIng, new Measurement(250, "g")));
         
         repositoryManager.getRecipeRepository().save(paneerRecipe);
         
@@ -138,8 +177,9 @@ public class InMemoryDataSeeder {
         
         alooGobiRecipe.setRawIngredientsText("potato, cauliflower, turmeric, cumin, coriander, ginger, garlic");
         
-        Ingredient potatoIng = repositoryManager.getIngredientRepository().findByName("potato").orElse(new Ingredient("potato"));
-        alooGobiRecipe.addIngredient(new IngredientQuantity(potatoIng, new Measurement(300, "g")));
+        // Commented out - using rawIngredientsText instead
+        // Ingredient potatoIng = repositoryManager.getIngredientRepository().findByName("potato").orElse(new Ingredient("potato"));
+        // alooGobiRecipe.addIngredient(new IngredientQuantity(potatoIng, new Measurement(300, "g")));
         
         repositoryManager.getRecipeRepository().save(alooGobiRecipe);
         

@@ -39,6 +39,8 @@ public class SimpleSwingApp extends JFrame {
     private JLabel statusLabel;
     private JLabel userLabel;
     private JButton backButton;
+    private JButton removeRecipeBtn;
+    private boolean viewingMyRecipes = false;
     
     // Store all recipes for reference
     private List<Recipe> allRecipes;
@@ -77,26 +79,13 @@ public class SimpleSwingApp extends JFrame {
     }
     
     /**
-     * Initializes in-memory data storage and loads all recipes from CSV.
+     * Initializes data storage with MySQL and loads recipes from database.
      */
     private void initializeData() {
-        System.out.println("Initializing data...");
-        
         try {
-            // Seed basic data (users, sample ingredients)
+            // Initialize all data (users, ingredients, and MySQL recipes)
             InMemoryDataSeeder seeder = new InMemoryDataSeeder();
-            if (!seeder.isDataSeeded()) {
-                seeder.createDemoUsers();
-                seeder.createSampleIngredients();
-                System.out.println("Demo users created");
-            }
-            
-            // Load ALL recipes from CSV
-            System.out.println("Loading recipes from CSV...");
-            int recipeCount = CSVRecipeLoader.loadRecipesFromCSV(
-                RepositoryManager.getInstance().getRecipeRepository()
-            );
-            System.out.println("Loaded " + recipeCount + " recipes from CSV");
+            seeder.seedAllData();
             
         } catch (Exception e) {
             System.err.println("Error initializing data: " + e.getMessage());
@@ -471,6 +460,13 @@ public class SimpleSwingApp extends JFrame {
         addIngredientsBtn.addActionListener(e -> addIngredientsToList());
         actionPanel.add(addIngredientsBtn);
         
+        // Remove recipe button (only visible in My Recipes view)
+        removeRecipeBtn = new JButton("Remove from My Recipes");
+        removeRecipeBtn.setForeground(new Color(180, 0, 0));
+        removeRecipeBtn.addActionListener(e -> removeFromMyRecipes());
+        removeRecipeBtn.setVisible(false);
+        actionPanel.add(removeRecipeBtn);
+        
         rightPanel.add(actionPanel, BorderLayout.SOUTH);
         
         // Split pane
@@ -508,9 +504,15 @@ public class SimpleSwingApp extends JFrame {
      * Loads all recipes into the list.
      */
     private void loadAllRecipes() {
+        viewingMyRecipes = false;
         allRecipes = recipeService.getAllRecipes();
         updateRecipeList(allRecipes);
         statusLabel.setText("Loaded " + allRecipes.size() + " recipes");
+        
+        // Hide remove button when viewing all recipes
+        if (removeRecipeBtn != null) {
+            removeRecipeBtn.setVisible(false);
+        }
     }
     
     /**
@@ -733,6 +735,7 @@ public class SimpleSwingApp extends JFrame {
      * Shows only user's recipes.
      */
     private void showMyRecipes() {
+        viewingMyRecipes = true;
         List<Recipe> myRecipes = recipeService.getUserRecipes(currentUser.getId());
         allRecipes = myRecipes;
         updateRecipeList(myRecipes);
@@ -743,6 +746,42 @@ public class SimpleSwingApp extends JFrame {
             backButton.setVisible(true);
             backButton.getParent().revalidate();
             backButton.getParent().repaint();
+        }
+        
+        // Show remove button in My Recipes view
+        if (removeRecipeBtn != null) {
+            removeRecipeBtn.setVisible(true);
+        }
+    }
+    
+    /**
+     * Removes the selected recipe from My Recipes.
+     */
+    private void removeFromMyRecipes() {
+        int index = recipeList.getSelectedIndex();
+        if (index < 0 || index >= allRecipes.size()) {
+            statusLabel.setText("Please select a recipe to remove");
+            return;
+        }
+        
+        Recipe recipe = allRecipes.get(index);
+        
+        // Confirm deletion
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Remove '" + recipe.getName() + "' from your recipes?",
+            "Confirm Removal",
+            JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            boolean success = recipeService.deleteRecipe(recipe.getId());
+            
+            if (success) {
+                statusLabel.setText("Recipe removed successfully");
+                // Refresh the My Recipes view
+                showMyRecipes();
+            } else {
+                statusLabel.setText("Failed to remove recipe");
+            }
         }
     }
     

@@ -1,29 +1,30 @@
 package com.recipeplanner.repository;
 
 import com.recipeplanner.model.Recipe;
+import com.recipeplanner.util.DbConnectionManager;
+
+import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
- * In-memory repository for Recipe entities using ArrayList.
- * Demonstrates Collections Framework, String handling, and search algorithms.
+ * MySQL-backed repository for Recipe entities using JDBC.
+ * Maintains the same interface as in-memory version for seamless migration.
+ * Demonstrates database integration while preserving OOP principles.
  * 
  * @author Recipe Planner Team
- * @version 2.0 (In-Memory)
+ * @version 3.0 (MySQL Integration)
  */
 public class RecipeRepository {
     
-    // Demonstrates Collections Framework - ArrayList usage (Module 4)
-    private final List<Recipe> recipes;
-    private int nextId;
-    
     /**
-     * Constructor initializes the in-memory storage.
+     * Constructor - no initialization needed for database version.
      */
     public RecipeRepository() {
-        this.recipes = new ArrayList<>();
-        this.nextId = 1;
+        // Connection is obtained per-operation via DbConnectionManager
     }
     
     /**
@@ -33,11 +34,23 @@ public class RecipeRepository {
      * @return Optional containing the Recipe if found
      */
     public Optional<Recipe> findById(int id) {
-        for (Recipe recipe : recipes) {
-            if (recipe.getId() == id) {
-                return Optional.of(recipe);
+        String sql = "SELECT * FROM recipes WHERE id = ?";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, id);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapRowToRecipe(rs));
+                }
             }
+        } catch (SQLException e) {
+            System.err.println("Error finding recipe by ID: " + e.getMessage());
+            e.printStackTrace();
         }
+        
         return Optional.empty();
     }
     
@@ -49,18 +62,83 @@ public class RecipeRepository {
      */
     public Recipe save(Recipe recipe) {
         if (recipe.getId() == 0) {
-            recipe.setId(nextId++);
-        }
-        
-        Optional<Recipe> existing = findById(recipe.getId());
-        if (existing.isPresent()) {
-            int index = recipes.indexOf(existing.get());
-            recipes.set(index, recipe);
+            return insertRecipe(recipe);
         } else {
-            recipes.add(recipe);
+            return updateRecipe(recipe);
+        }
+    }
+    
+    /**
+     * Inserts a new recipe into the database.
+     */
+    private Recipe insertRecipe(Recipe recipe) {
+        String sql = "INSERT INTO recipes (name, description, cuisine, total_time_mins, " +
+                     "created_by, source_url, image_url, raw_ingredients, instructions) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
+            setRecipeParameters(ps, recipe);
+            ps.executeUpdate();
+            
+            // Get auto-generated ID
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) {
+                    recipe.setId(keys.getInt(1));
+                }
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error inserting recipe: " + e.getMessage());
+            e.printStackTrace();
         }
         
         return recipe;
+    }
+    
+    /**
+     * Updates an existing recipe in the database.
+     */
+    private Recipe updateRecipe(Recipe recipe) {
+        String sql = "UPDATE recipes SET name = ?, description = ?, cuisine = ?, " +
+                     "total_time_mins = ?, created_by = ?, source_url = ?, " +
+                     "image_url = ?, raw_ingredients = ?, instructions = ? " +
+                     "WHERE id = ?";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            setRecipeParameters(ps, recipe);
+            ps.setInt(10, recipe.getId());
+            ps.executeUpdate();
+            
+        } catch (SQLException e) {
+            System.err.println("Error updating recipe: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recipe;
+    }
+    
+    /**
+     * Helper method to set recipe parameters in PreparedStatement.
+     */
+    private void setRecipeParameters(PreparedStatement ps, Recipe recipe) throws SQLException {
+        ps.setString(1, recipe.getName());
+        ps.setString(2, recipe.getDescription());
+        ps.setString(3, recipe.getCuisine());
+        ps.setInt(4, recipe.getTotalTimeInMins());
+        ps.setInt(5, recipe.getCreatedBy());
+        ps.setString(6, recipe.getSourceUrl());
+        ps.setString(7, recipe.getImageUrl());
+        ps.setString(8, recipe.getRawIngredientsText());
+        
+        // Serialize instructions list to string (newline-separated)
+        String instructionsText = recipe.getInstructions() != null 
+            ? String.join("\n", recipe.getInstructions()) 
+            : "";
+        ps.setString(9, instructionsText);
     }
     
     /**
@@ -70,7 +148,20 @@ public class RecipeRepository {
      * @return true if deletion was successful
      */
     public boolean delete(int recipeId) {
-        return recipes.removeIf(recipe -> recipe.getId() == recipeId);
+        String sql = "DELETE FROM recipes WHERE id = ?";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, recipeId);
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+            
+        } catch (SQLException e) {
+            System.err.println("Error deleting recipe: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
     
     /**
@@ -79,12 +170,28 @@ public class RecipeRepository {
      * @return List of all recipes
      */
     public List<Recipe> findAll() {
-        return new ArrayList<>(recipes);
+        List<Recipe> recipes = new ArrayList<>();
+        String sql = "SELECT * FROM recipes ORDER BY name";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            while (rs.next()) {
+                recipes.add(mapRowToRecipe(rs));
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error finding all recipes: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recipes;
     }
     
     /**
      * Searches recipes by name (case-insensitive).
-     * Demonstrates String handling and filtering (Module 3).
+     * Also searches in ingredients text.
      * 
      * @param searchTerm The search term
      * @return List of matching recipes
@@ -94,22 +201,32 @@ public class RecipeRepository {
             return new ArrayList<>();
         }
         
-        String normalizedSearch = searchTerm.toLowerCase().trim();
-        List<Recipe> results = new ArrayList<>();
+        List<Recipe> recipes = new ArrayList<>();
+        String sql = "SELECT * FROM recipes WHERE name LIKE ? OR raw_ingredients LIKE ? ORDER BY name";
         
-        for (Recipe recipe : recipes) {
-            if (recipe.getName() != null && 
-                recipe.getName().toLowerCase().contains(normalizedSearch)) {
-                results.add(recipe);
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            String pattern = "%" + searchTerm.trim() + "%";
+            ps.setString(1, pattern);
+            ps.setString(2, pattern);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    recipes.add(mapRowToRecipe(rs));
+                }
             }
+            
+        } catch (SQLException e) {
+            System.err.println("Error searching recipes by name: " + e.getMessage());
+            e.printStackTrace();
         }
         
-        return results;
+        return recipes;
     }
     
     /**
      * Finds recipes by cuisine type.
-     * Demonstrates filtering with Collections.
      * 
      * @param cuisine The cuisine type
      * @return List of recipes matching the cuisine
@@ -119,13 +236,26 @@ public class RecipeRepository {
             return new ArrayList<>();
         }
         
-        List<Recipe> results = new ArrayList<>();
-        for (Recipe recipe : recipes) {
-            if (cuisine.equalsIgnoreCase(recipe.getCuisine())) {
-                results.add(recipe);
+        List<Recipe> recipes = new ArrayList<>();
+        String sql = "SELECT * FROM recipes WHERE cuisine = ? ORDER BY name";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, cuisine);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    recipes.add(mapRowToRecipe(rs));
+                }
             }
+            
+        } catch (SQLException e) {
+            System.err.println("Error finding recipes by cuisine: " + e.getMessage());
+            e.printStackTrace();
         }
-        return results;
+        
+        return recipes;
     }
     
     /**
@@ -135,32 +265,57 @@ public class RecipeRepository {
      * @return List of recipes created by the user
      */
     public List<Recipe> findByCreatedBy(int userId) {
-        List<Recipe> results = new ArrayList<>();
-        for (Recipe recipe : recipes) {
-            if (recipe.getCreatedBy() == userId) {
-                results.add(recipe);
+        List<Recipe> recipes = new ArrayList<>();
+        String sql = "SELECT * FROM recipes WHERE created_by = ? ORDER BY name";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, userId);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    recipes.add(mapRowToRecipe(rs));
+                }
             }
+            
+        } catch (SQLException e) {
+            System.err.println("Error finding recipes by creator: " + e.getMessage());
+            e.printStackTrace();
         }
-        return results;
+        
+        return recipes;
     }
     
     /**
      * Gets a limited number of recipes for pagination.
-     * Demonstrates array-like operations on ArrayList.
      * 
      * @param limit Maximum number of recipes to return
      * @param offset Starting position
      * @return Sublist of recipes
      */
     public List<Recipe> findWithLimit(int limit, int offset) {
-        int start = Math.min(offset, recipes.size());
-        int end = Math.min(offset + limit, recipes.size());
+        List<Recipe> recipes = new ArrayList<>();
+        String sql = "SELECT * FROM recipes ORDER BY name LIMIT ? OFFSET ?";
         
-        if (start >= recipes.size()) {
-            return new ArrayList<>();
+        try (Connection conn = DbConnectionManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    recipes.add(mapRowToRecipe(rs));
+                }
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error finding recipes with limit: " + e.getMessage());
+            e.printStackTrace();
         }
         
-        return new ArrayList<>(recipes.subList(start, end));
+        return recipes;
     }
     
     /**
@@ -169,14 +324,71 @@ public class RecipeRepository {
      * @return The number of recipes in the repository
      */
     public int count() {
-        return recipes.size();
+        String sql = "SELECT COUNT(*) FROM recipes";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error counting recipes: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return 0;
     }
     
     /**
-     * Clears all recipes from the repository.
+     * Clears all recipes from the database.
+     * WARNING: This deletes all data!
      */
     public void clear() {
-        recipes.clear();
-        nextId = 1;
+        String sql = "DELETE FROM recipes";
+        
+        try (Connection conn = DbConnectionManager.getConnection();
+             Statement stmt = conn.createStatement()) {
+            
+            stmt.executeUpdate(sql);
+            System.out.println("All recipes cleared from database");
+            
+        } catch (SQLException e) {
+            System.err.println("Error clearing recipes: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Maps a database row to a Recipe object.
+     * Demonstrates ResultSet handling and object construction.
+     */
+    private Recipe mapRowToRecipe(ResultSet rs) throws SQLException {
+        Recipe recipe = new Recipe();
+        
+        recipe.setId(rs.getInt("id"));
+        recipe.setName(rs.getString("name"));
+        recipe.setDescription(rs.getString("description"));
+        recipe.setCuisine(rs.getString("cuisine"));
+        recipe.setTotalTimeInMins(rs.getInt("total_time_mins"));
+        recipe.setCreatedBy(rs.getInt("created_by"));
+        recipe.setSourceUrl(rs.getString("source_url"));
+        recipe.setImageUrl(rs.getString("image_url"));
+        recipe.setRawIngredientsText(rs.getString("raw_ingredients"));
+        
+        // Deserialize instructions (newline-separated string back to List)
+        String instructionsText = rs.getString("instructions");
+        if (instructionsText != null && !instructionsText.trim().isEmpty()) {
+            List<String> instructions = Arrays.stream(instructionsText.split("\n"))
+                .filter(s -> !s.trim().isEmpty())
+                .collect(Collectors.toList());
+            recipe.setInstructions(instructions);
+        } else {
+            recipe.setInstructions(new ArrayList<>());
+        }
+        
+        return recipe;
     }
 }
