@@ -806,7 +806,7 @@ public class SimpleSwingApp extends JFrame {
     private void showModernRecipeCard(Recipe recipe) {
         JDialog dialog = new JDialog(this, "Recipe Details", true);
         dialog.setUndecorated(true); // Remove title bar (no duplicate close button)
-        dialog.setSize(550, 650);
+        dialog.setSize(700, 750);
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
         
@@ -1108,7 +1108,8 @@ public class SimpleSwingApp extends JFrame {
         
         // Create modern dialog
         JDialog dialog = new JDialog(this, "My Ingredient List", true);
-        dialog.setSize(500, 600);
+        dialog.setUndecorated(true); // Remove title bar (no duplicate close button)
+        dialog.setSize(600, 700);
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
         
