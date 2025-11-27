@@ -231,15 +231,3 @@ mvn exec:java -Dexec.mainClass="com.recipeplanner.SimpleSwingApp"
 | MySQL Connector/J | 8.0.33 | JDBC Driver |
 | OpenCSV    | 5.7.1   | CSV parsing |
 
----
-
-## Author
-
-**Adithya Sharath**
-- GitHub: [@Adithya-Sharath](https://github.com/Adithya-Sharath)
-
----
-
-## License
-
-This project is created for educational purposes as part of college coursework.
