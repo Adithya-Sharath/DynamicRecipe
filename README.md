@@ -1,210 +1,245 @@
 # DynamicRecipe - Recipe & Meal Planner
 
-A comprehensive Java-based Recipe and Meal Planning application with a Swing GUI, demonstrating all core Object-Oriented Programming concepts for college curriculum.
+A modern Java Swing application for browsing, managing, and organizing Indian recipes with MySQL database integration.
 
-![Java](https://img.shields.io/badge/Java-11+-orange.svg)
+![Java](https://img.shields.io/badge/Java-17-orange.svg)
 ![Swing](https://img.shields.io/badge/GUI-Swing-blue.svg)
-![Storage](https://img.shields.io/badge/Storage-MySQL-blue.svg)
-![Recipes](https://img.shields.io/badge/Recipes-5938-brightgreen.svg)
+![MySQL](https://img.shields.io/badge/Storage-MySQL-blue.svg)
+![Recipes](https://img.shields.io/badge/Recipes-5938+-brightgreen.svg)
 
-## 🎯 Project Overview
+---
 
-This application is built to demonstrate all 7 modules of Java Object-Oriented Programming:
-1. **OOP Basics** - Classes, Objects, Encapsulation
-2. **Class Design** - Constructors, Methods, Overloading
-3. **Packages & Strings** - Package organization, String handling, Arrays
-4. **Collections** - ArrayList, HashMap, LinkedHashMap
-5. **Inheritance & Polymorphism** - User hierarchy with method overriding
-6. **Interfaces & Inner Classes** - Searchable interface, RecipeBuilder inner class
-7. **Exception Handling** - Custom AuthenticationException
+## Features
 
-## ✨ Features
+- **5,938+ Indian Recipes** - Comprehensive database of authentic Indian dishes
+- **Modern UI Design** - Clean mint green theme with rounded corners and custom Lexend font
+- **User Authentication** - Login system with regular and admin users
+- **Recipe Management** - Add recipes to personal collection, search, and sort by cooking time
+- **Shopping List** - Add ingredients from multiple recipes to a grocery list
+- **MySQL Integration** - Persistent storage for recipes and user data
 
-- 🔐 **User Authentication** - Login/Registration with password hashing
-- 📚 **5,938 Indian Recipes** - Loaded from CSV dataset
-- 🔍 **Smart Search** - Search by recipe name or cuisine
-- ⏱️ **Sort by Time** - Find quick recipes
-- ❤️ **My Recipes** - Personal recipe collection
-- 🛒 **Shopping List** - Multi-recipe ingredient aggregation
-- 📊 **Statistics** - User activity dashboard
-- 👥 **User Types** - Regular users and Administrators (polymorphism)
+---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- Java JDK 11 or higher
+- Java JDK 17 or higher
 - MySQL Server 8.0+ installed and running
 
 ### Setup
 
-1. **Configure MySQL password** in `src/main/java/com/recipeplanner/util/DbConnectionManager.java`
-2. **Create database**: Run `database_schema.sql` in MySQL
-3. **Run application**: Double-click `run_app.bat`
+1. **Create MySQL Database**
+   ```sql
+   CREATE DATABASE recipe_planner;
+   USE recipe_planner;
+   ```
 
-For detailed setup instructions, see **[MYSQL_SETUP.md](MYSQL_SETUP.md)**
+2. **Run the schema**
+   ```bash
+   mysql -u root -p recipe_planner < database_schema.sql
+   ```
 
-### Demo Accounts
-- **Regular User:** `demo` / `demo123`
-- **Admin User:** `admin` / `admin123`
+3. **Configure database password** in `src/main/java/com/recipeplanner/util/DbConnectionManager.java`:
+   ```java
+   private static final String PASSWORD = "your_password";
+   ```
 
-## 📁 Project Structure
+4. **Run the application**
+   ```bash
+   run_app.bat
+   ```
+
+### Login Credentials
+
+| User Type | Username | Password |
+|-----------|----------|----------|
+| Regular   | demo     | demo123  |
+| Admin     | admin    | admin123 |
+
+---
+
+## Project Structure
 
 ```
-DynamicRecipe/
+OOPS_Project/
 ├── src/main/java/com/recipeplanner/
-│   ├── SimpleSwingApp.java           # Main Swing GUI application
-│   ├── SimpleConsoleApp.java         # Console demo application
+│   ├── SimpleSwingApp.java              # Main GUI application
 │   │
-│   ├── model/                        # Entity classes
-│   │   ├── User.java                 # Base class for polymorphism
-│   │   ├── RegularUser.java          # Inherits from User
-│   │   ├── AdminUser.java            # Inherits from User
-│   │   ├── Recipe.java               # Implements Searchable
-│   │   ├── Ingredient.java
-│   │   ├── MealType.java             # Enum
-│   │   └── Measurement.java
+│   ├── model/                           # Data models
+│   │   ├── User.java                    # Abstract user class
+│   │   ├── AdminUser.java               # Admin (extends User)
+│   │   ├── RegularUser.java             # Regular user (extends User)
+│   │   ├── Recipe.java                  # Recipe with Builder pattern
+│   │   ├── Ingredient.java              # Ingredient model
+│   │   ├── Measurement.java             # Measurement units
+│   │   └── MealType.java                # Enum for meal types
 │   │
-│   ├── repository/                   # Data access layer
-│   │   ├── UserRepository.java
-│   │   ├── RecipeRepository.java
-│   │   ├── IngredientRepository.java
-│   │   └── RepositoryManager.java    # Singleton pattern
+│   ├── repository/                      # Data access layer
+│   │   ├── UserRepository.java          # User CRUD operations
+│   │   ├── RecipeRepository.java        # Recipe CRUD (MySQL)
+│   │   ├── IngredientRepository.java    # Ingredient storage
+│   │   └── RepositoryManager.java       # Singleton factory
 │   │
-│   ├── service/                      # Business logic
-│   │   ├── AuthenticationService.java
-│   │   └── RecipeService.java
+│   ├── service/                         # Business logic
+│   │   ├── AuthenticationService.java   # Login/logout
+│   │   └── RecipeService.java           # Recipe operations
 │   │
-│   ├── util/                         # Utilities
-│   │   ├── DbConnectionManager.java  # MySQL connection manager
-│   │   ├── PasswordHasher.java
-│   │   ├── InMemoryDataSeeder.java
-│   │   └── CSVRecipeLoader.java
+│   ├── util/                            # Utilities
+│   │   ├── DbConnectionManager.java     # MySQL connection pool
+│   │   ├── CSVRecipeLoader.java         # CSV data importer
+│   │   ├── InMemoryDataSeeder.java      # Initial data setup
+│   │   └── PasswordHasher.java          # SHA-256 hashing
 │   │
 │   ├── interfaces/
-│   │   └── Searchable.java           # Interface definition
+│   │   └── Searchable.java              # Search interface
 │   │
 │   └── exceptions/
-│       └── AuthenticationException.java
+│       └── AuthenticationException.java # Custom exception
 │
-├── Cleaned_Indian_Food_Dataset.csv   # 5,938 recipes
-├── PROJECT_DOCUMENTATION.md          # Detailed module coverage
-├── pom.xml                           # Maven configuration
-└── README.md                         # This file
+├── src/main/resources/
+│   ├── dataset/
+│   │   └── Cleaned_Indian_Food_Dataset.csv  # Recipe data
+│   └── fonts/
+│       └── Lexend-Bold.ttf              # Custom UI font
+│
+├── database_schema.sql                  # MySQL table definitions
+├── pom.xml                              # Maven configuration
+├── run_app.bat                          # Quick start script
+└── README.md
 ```
 
-## 🎓 Educational Value
+---
 
-This project demonstrates:
+## OOP Concepts Demonstrated
 
-### Module 1: OOP Basics
-- Encapsulation with private fields and public methods
-- Object creation and initialization
+### 1. Inheritance
+```
+User (abstract)
+  ├── AdminUser
+  └── RegularUser
+```
+- Abstract class with common fields (id, username, password)
+- Subclasses override `getUserType()` method
 
-### Module 2: Class Design
-- Multiple constructors
-- Method overloading
-- `this` keyword usage
-- `equals()`, `hashCode()`, `toString()` overriding
+### 2. Encapsulation
+- Private fields with public getters/setters
+- Data hiding in all model classes
 
-### Module 3: Packages, Arrays & Strings
-- Package organization (`com.recipeplanner.*`)
-- Array declaration and iteration
-- String methods: `trim()`, `split()`, `toLowerCase()`, etc.
-- StringBuilder for efficient concatenation
+### 3. Abstraction
+- `Searchable` interface defines search contract
+- Abstract `User` class provides common behavior
 
-### Module 4: Collections & Access Control
-- `ArrayList` for dynamic storage
-- `HashMap`/`LinkedHashMap` for key-value pairs
-- Access modifiers: `public`, `private`, `protected`
-- Stream API operations
+### 4. Polymorphism
+- Runtime method dispatch via `User.getUserType()`
+- Interface implementation in `Recipe`
 
-### Module 5: Inheritance & Polymorphism
-- User → RegularUser, AdminUser hierarchy
-- Method overriding with `@Override`
-- Runtime polymorphism (dynamic method dispatch)
-- `super` keyword
+### 5. Builder Pattern
+```java
+Recipe recipe = new Recipe.RecipeBuilder("Paneer Butter Masala")
+    .withCuisine("North Indian")
+    .withCookingTime(45)
+    .addInstruction("Heat ghee in a pan")
+    .addInstruction("Add spices and cream")
+    .build();
+```
 
-### Module 6: Interfaces & Inner Classes
-- `Searchable` interface implementation
-- `RecipeBuilder` static inner class
-- Fluent interface pattern
+### 6. Inner Classes
+- `Recipe.RecipeBuilder` - Static inner class for fluent construction
+- `RoundedBorder` - Custom Swing border component
 
-### Module 7: Exception Handling
-- Custom `AuthenticationException`
-- try-catch-finally blocks
-- Exception chaining
-- Input validation with exceptions
+### 7. Exception Handling
+- Custom `AuthenticationException` for login errors
+- Try-catch blocks for database and file operations
 
-## 🎨 Design Patterns
+### 8. Collections Framework
+- `ArrayList<Recipe>` - Recipe storage
+- `LinkedHashMap<String, List<String>>` - Shopping list (preserves order)
+- Stream API for filtering and sorting
 
-- **Singleton** - RepositoryManager ensures single instance
-- **Repository** - Abstracts data access from business logic
-- **Builder** - Recipe.RecipeBuilder for fluent object creation
-- **Service Layer** - Separates business logic from presentation
+---
 
-## 📸 Screenshots
+## UI Design
 
-### Login Screen
-Clean and simple authentication interface with demo account hints.
+### Theme
+- **Background**: Mint Green `#E8F5E9`
+- **Accent**: Dark Green `#2E7D32`
+- **Font**: Lexend Bold (custom TTF)
+- **Border Radius**: 15px cards, 12px buttons
 
-### Recipe Browser
-Browse through 5,938 Indian recipes with search and sort functionality.
+### Components
+- **Recipe Cards** - Single column layout with rounded corners
+- **Search Bar** - Filter recipes by name
+- **Buttons** - View my recipes, View ingredient list, Sort by time
+- **Dialogs** - Undecorated with custom close button
 
-### Shopping List
-Add ingredients from multiple recipes, organized by recipe name.
+---
 
-## 🛠️ Development
+## Database Schema
 
-### Compile from Source
+```sql
+CREATE TABLE recipes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(500) NOT NULL,
+    cuisine VARCHAR(100),
+    total_time_mins INT,
+    description TEXT,
+    raw_ingredients_text TEXT,
+    instructions TEXT,
+    created_by INT DEFAULT 0
+);
 
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    user_type VARCHAR(20) DEFAULT 'REGULAR'
+);
+```
+
+---
+
+## How to Run
+
+### Option 1: Batch File
 ```bash
-# Compile all files
-javac -d target/classes -sourcepath src/main/java src/main/java/com/recipeplanner/SimpleSwingApp.java
-
-# Run application
-java -cp target/classes com.recipeplanner.SimpleSwingApp
+run_app.bat
 ```
 
-### Using Maven
+### Option 2: Command Line
+```bash
+# Compile
+javac -d target/classes -cp "target/classes;path/to/mysql-connector-j-8.0.33.jar" src/main/java/com/recipeplanner/SimpleSwingApp.java
 
+# Run
+java -cp "target/classes;path/to/mysql-connector-j-8.0.33.jar" com.recipeplanner.SimpleSwingApp
+```
+
+### Option 3: Maven
 ```bash
 mvn clean compile
 mvn exec:java -Dexec.mainClass="com.recipeplanner.SimpleSwingApp"
 ```
 
-## 📊 Data Storage
+---
 
-- **Storage Type:** MySQL Database (persistent)
-- **Users & Ingredients:** In-Memory (ArrayList, HashMap)
-- **Recipes:** MySQL with JDBC
-- **Data Persistence:** Permanent (recipes survive restarts)
-- **Recipe Source:** CSV file loaded once into MySQL (5,938 recipes)
+## Dependencies
 
-## 🤝 Contributing
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| Java JDK   | 17      | Runtime |
+| MySQL      | 8.0+    | Database |
+| MySQL Connector/J | 8.0.33 | JDBC Driver |
+| OpenCSV    | 5.7.1   | CSV parsing |
 
-This is an educational project for college curriculum. Contributions for educational improvements are welcome!
+---
 
-## 📝 License
-
-This project is created for educational purposes as part of college coursework.
-
-## 👨‍💻 Author
+## Author
 
 **Adithya Sharath**
 - GitHub: [@Adithya-Sharath](https://github.com/Adithya-Sharath)
 
-## 🙏 Acknowledgments
-
-- Indian Food Dataset: Cleaned and curated recipe collection
-- Java Swing: GUI framework
-- College OOP Curriculum: Project requirements and module specifications
-
 ---
 
-## 📚 Documentation
+## License
 
-For detailed module coverage, code examples, and concept explanations, see [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md)
-
----
-
-**⭐ If this helps you with your OOP learning, please star the repository!**
+This project is created for educational purposes as part of college coursework.

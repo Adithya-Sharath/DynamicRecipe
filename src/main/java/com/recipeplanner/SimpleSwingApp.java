@@ -4,16 +4,14 @@ import com.recipeplanner.model.*;
 import com.recipeplanner.service.AuthenticationService;
 import com.recipeplanner.service.RecipeService;
 import com.recipeplanner.util.InMemoryDataSeeder;
-import com.recipeplanner.util.CSVRecipeLoader;
 import com.recipeplanner.exceptions.AuthenticationException;
-import com.recipeplanner.repository.RepositoryManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.List;
-import java.awt.Window;
+import java.io.InputStream;
 
 /**
  * Simple Swing-based GUI for Recipe & Meal Planner.
@@ -24,6 +22,9 @@ import java.awt.Window;
  */
 public class SimpleSwingApp extends JFrame {
     
+    // Custom Lexend font
+    private static Font LEXEND_FONT;
+    
     // Services
     private AuthenticationService authService = new AuthenticationService();
     private RecipeService recipeService = new RecipeService();
@@ -32,15 +33,12 @@ public class SimpleSwingApp extends JFrame {
     private User currentUser;
     
     // UI Components
-    private JList<String> recipeList;
-    private DefaultListModel<String> recipeListModel;
-    private JTextArea recipeDetailsArea;
+    private JPanel recipeCardsPanel;
     private JTextField searchField;
     private JLabel statusLabel;
     private JLabel userLabel;
     private JButton backButton;
     private JButton removeRecipeBtn;
-    private boolean viewingMyRecipes = false;
     
     // Store all recipes for reference
     private List<Recipe> allRecipes;
@@ -49,6 +47,9 @@ public class SimpleSwingApp extends JFrame {
     private java.util.Map<String, List<String>> shoppingList = new java.util.LinkedHashMap<>();
     
     public static void main(String[] args) {
+        // Load custom Lexend font
+        loadCustomFont();
+        
         // Set look and feel
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -60,6 +61,38 @@ public class SimpleSwingApp extends JFrame {
             SimpleSwingApp app = new SimpleSwingApp();
             app.showLoginDialog();
         });
+    }
+    
+    /**
+     * Loads the custom Lexend font from resources.
+     */
+    private static void loadCustomFont() {
+        try {
+            InputStream fontStream = SimpleSwingApp.class.getResourceAsStream("/fonts/Lexend-Bold.ttf");
+            if (fontStream != null) {
+                LEXEND_FONT = Font.createFont(Font.TRUETYPE_FONT, fontStream);
+                GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+                ge.registerFont(LEXEND_FONT);
+                fontStream.close();
+                System.out.println("Lexend font loaded successfully");
+            } else {
+                System.out.println("Font file not found, using fallback font");
+                LEXEND_FONT = new Font("SansSerif", Font.PLAIN, 12);
+            }
+        } catch (Exception e) {
+            System.out.println("Error loading font: " + e.getMessage());
+            LEXEND_FONT = new Font("SansSerif", Font.PLAIN, 12);
+        }
+    }
+    
+    /**
+     * Gets the Lexend font with specified style and size.
+     */
+    private static Font getLexendFont(int style, float size) {
+        if (LEXEND_FONT != null) {
+            return LEXEND_FONT.deriveFont(style, size);
+        }
+        return new Font("SansSerif", style, (int) size);
     }
     
     /**
@@ -337,15 +370,16 @@ public class SimpleSwingApp extends JFrame {
      * Creates the main UI.
      */
     private void createUI() {
-        setLayout(new BorderLayout(5, 5));
+        setLayout(new BorderLayout());
         
-        // Top panel - toolbar
+        // Top panel - toolbar (simplified, shown only in My Recipes view)
         JPanel topPanel = createTopPanel();
+        topPanel.setVisible(false); // Hide by default, show only for My Recipes
         add(topPanel, BorderLayout.NORTH);
         
-        // Center panel - split pane with list and details
-        JSplitPane splitPane = createCenterPanel();
-        add(splitPane, BorderLayout.CENTER);
+        // Center panel - modern card grid
+        JPanel centerPanel = createCenterPanel();
+        add(centerPanel, BorderLayout.CENTER);
         
         // Bottom panel - status bar
         JPanel bottomPanel = createBottomPanel();
@@ -419,62 +453,133 @@ public class SimpleSwingApp extends JFrame {
         return panel;
     }
     
+    // Mint green theme colors
+    private static final Color MINT_BG = new Color(232, 245, 233);
+    private static final Color DARK_GREEN = new Color(46, 125, 50);
+    
     /**
-     * Creates center panel with recipe list and details.
+     * Creates center panel with modern recipe cards grid.
      */
-    private JSplitPane createCenterPanel() {
-        // Left panel - recipe list
-        recipeListModel = new DefaultListModel<>();
-        recipeList = new JList<>(recipeListModel);
-        recipeList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        recipeList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                showSelectedRecipe();
+    private JPanel createCenterPanel() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(MINT_BG);
+        
+        // Header Panel
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(MINT_BG);
+        headerPanel.setBorder(new EmptyBorder(30, 40, 20, 40));
+        
+        // Left side - Title and subtitle
+        JPanel titlePanel = new JPanel();
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+        titlePanel.setBackground(MINT_BG);
+        
+        JLabel titleLabel = new JLabel("Recipe Book");
+        titleLabel.setFont(getLexendFont(Font.BOLD, 28));
+        titleLabel.setForeground(new Color(33, 33, 33));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titlePanel.add(titleLabel);
+        
+        JLabel subtitleLabel = new JLabel("Discover authentic Indian flavors");
+        subtitleLabel.setFont(getLexendFont(Font.PLAIN, 14));
+        subtitleLabel.setForeground(DARK_GREEN);
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titlePanel.add(subtitleLabel);
+        
+        headerPanel.add(titlePanel, BorderLayout.WEST);
+        
+        // Right side - Action buttons
+        JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 0));
+        actionButtonsPanel.setBackground(MINT_BG);
+        
+        // Back button (hidden by default, shown when viewing My Recipes)
+        backButton = createOutlineButton("<< All Recipes");
+        backButton.setVisible(false);
+        backButton.addActionListener(e -> loadAllRecipes());
+        actionButtonsPanel.add(backButton);
+        
+        JButton myRecipesBtn = createOutlineButton("View my recipes");
+        myRecipesBtn.addActionListener(e -> showMyRecipes());
+        actionButtonsPanel.add(myRecipesBtn);
+        
+        JButton ingredientListBtn = createOutlineButton("View my ingredient list");
+        ingredientListBtn.addActionListener(e -> viewShoppingList());
+        actionButtonsPanel.add(ingredientListBtn);
+        
+        headerPanel.add(actionButtonsPanel, BorderLayout.EAST);
+        
+        // Search and Sort row
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 15));
+        searchPanel.setBackground(MINT_BG);
+        
+        // Search bar
+        searchField = new JTextField(25);
+        searchField.setText("Search recipes...");
+        searchField.setFont(getLexendFont(Font.PLAIN, 14));
+        searchField.setForeground(new Color(150, 150, 150));
+        searchField.setPreferredSize(new Dimension(350, 40));
+        searchField.setBorder(createRoundedBorder(new Color(200, 200, 200), 15, 10));
+        searchField.setBackground(Color.WHITE);
+        
+        
+        searchField.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusGained(java.awt.event.FocusEvent e) {
+                if (searchField.getText().equals("Search recipes...")) {
+                    searchField.setText("");
+                    searchField.setForeground(new Color(33, 33, 33));
+                }
+            }
+            public void focusLost(java.awt.event.FocusEvent e) {
+                if (searchField.getText().isEmpty()) {
+                    searchField.setText("Search recipes...");
+                    searchField.setForeground(new Color(150, 150, 150));
+                }
             }
         });
+        searchField.addActionListener(e -> searchRecipes());
+        searchPanel.add(searchField);
         
-        JScrollPane listScroll = new JScrollPane(recipeList);
-        listScroll.setBorder(BorderFactory.createTitledBorder("Recipes"));
+        // Sort button
+        JButton sortBtn = createOutlineButton("Sort by Time");
+        sortBtn.addActionListener(e -> sortRecipesByTime());
+        searchPanel.add(sortBtn);
         
-        // Right panel - recipe details with action buttons
-        JPanel rightPanel = new JPanel(new BorderLayout());
+        // Combine header
+        JPanel fullHeaderPanel = new JPanel(new BorderLayout());
+        fullHeaderPanel.setBackground(MINT_BG);
+        fullHeaderPanel.add(headerPanel, BorderLayout.NORTH);
+        fullHeaderPanel.add(searchPanel, BorderLayout.SOUTH);
         
-        recipeDetailsArea = new JTextArea();
-        recipeDetailsArea.setEditable(false);
-        recipeDetailsArea.setLineWrap(true);
-        recipeDetailsArea.setWrapStyleWord(true);
-        recipeDetailsArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        mainPanel.add(fullHeaderPanel, BorderLayout.NORTH);
         
-        JScrollPane detailsScroll = new JScrollPane(recipeDetailsArea);
-        detailsScroll.setBorder(BorderFactory.createTitledBorder("Recipe Details"));
-        rightPanel.add(detailsScroll, BorderLayout.CENTER);
+        // Recipe cards panel - single column layout
+        recipeCardsPanel = new JPanel();
+        recipeCardsPanel.setLayout(new BoxLayout(recipeCardsPanel, BoxLayout.Y_AXIS));
+        recipeCardsPanel.setBackground(MINT_BG);
+        recipeCardsPanel.setBorder(new EmptyBorder(20, 40, 20, 40));
         
-        // Action buttons panel
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JScrollPane scrollPane = new JScrollPane(recipeCardsPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.getViewport().setBackground(MINT_BG);
+        scrollPane.setBackground(MINT_BG);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
         
-        JButton addToMyRecipesBtn = new JButton("Add to My Recipes");
-        addToMyRecipesBtn.addActionListener(e -> addToMyRecipes());
-        actionPanel.add(addToMyRecipesBtn);
-        
-        JButton addIngredientsBtn = new JButton("Add Ingredients to List");
-        addIngredientsBtn.addActionListener(e -> addIngredientsToList());
-        actionPanel.add(addIngredientsBtn);
-        
-        // Remove recipe button (only visible in My Recipes view)
-        removeRecipeBtn = new JButton("Remove from My Recipes");
-        removeRecipeBtn.setForeground(new Color(180, 0, 0));
-        removeRecipeBtn.addActionListener(e -> removeFromMyRecipes());
-        removeRecipeBtn.setVisible(false);
-        actionPanel.add(removeRecipeBtn);
-        
-        rightPanel.add(actionPanel, BorderLayout.SOUTH);
-        
-        // Split pane
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, listScroll, rightPanel);
-        splitPane.setDividerLocation(350);
-        splitPane.setBorder(new EmptyBorder(0, 10, 0, 10));
-        
-        return splitPane;
+        return mainPanel;
+    }
+    
+    /**
+     * Creates an outlined button with consistent style.
+     */
+    private JButton createOutlineButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(getLexendFont(Font.PLAIN, 13));
+        button.setForeground(new Color(60, 60, 60));
+        button.setBackground(Color.WHITE);
+        button.setBorder(createRoundedBorder(new Color(180, 180, 180), 12, 8));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return button;
     }
     
     /**
@@ -504,214 +609,371 @@ public class SimpleSwingApp extends JFrame {
      * Loads all recipes into the list.
      */
     private void loadAllRecipes() {
-        viewingMyRecipes = false;
         allRecipes = recipeService.getAllRecipes();
         updateRecipeList(allRecipes);
         statusLabel.setText("Loaded " + allRecipes.size() + " recipes");
         
-        // Hide remove button when viewing all recipes
+        // Hide back button when viewing all recipes
+        if (backButton != null) {
+            backButton.setVisible(false);
+        }
         if (removeRecipeBtn != null) {
             removeRecipeBtn.setVisible(false);
         }
     }
     
     /**
-     * Updates the recipe list display.
-     * Shows only recipe names for cleaner UI.
+     * Updates the recipe cards display - single column with spacing.
      */
     private void updateRecipeList(List<Recipe> recipes) {
-        recipeListModel.clear();
+        recipeCardsPanel.removeAll();
+        
         for (Recipe recipe : recipes) {
-            // Show only recipe name
-            recipeListModel.addElement(recipe.getName());
+            JPanel card = createRecipeCard(recipe);
+            card.setAlignmentX(Component.LEFT_ALIGNMENT);
+            card.setMaximumSize(new Dimension(Integer.MAX_VALUE, card.getPreferredSize().height + 50));
+            recipeCardsPanel.add(card);
+            recipeCardsPanel.add(Box.createVerticalStrut(15)); // Spacing between cards
         }
         
-        if (!recipes.isEmpty()) {
-            recipeList.setSelectedIndex(0);
-        }
+        recipeCardsPanel.revalidate();
+        recipeCardsPanel.repaint();
     }
     
     /**
-     * Shows details of the selected recipe.
+     * Creates a modern recipe card matching the design.
      */
-    private void showSelectedRecipe() {
-        int index = recipeList.getSelectedIndex();
-        if (index >= 0 && index < allRecipes.size()) {
-            Recipe recipe = allRecipes.get(index);
-            displayRecipeDetails(recipe);
-        }
+    private JPanel createRecipeCard(Recipe recipe) {
+        JPanel card = new JPanel();
+        card.setLayout(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(createRoundedBorder(new Color(220, 220, 220), 15, 18));
+        
+        // Content panel
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        
+        // Recipe name
+        JLabel nameLabel = new JLabel(recipe.getName());
+        nameLabel.setFont(getLexendFont(Font.BOLD, 18));
+        nameLabel.setForeground(new Color(33, 33, 33));
+        nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(nameLabel);
+        
+        contentPanel.add(Box.createVerticalStrut(12));
+        
+        // Meta info panel (time and servings)
+        JPanel metaPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        metaPanel.setBackground(Color.WHITE);
+        metaPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Time label
+        JLabel timeLabel = new JLabel(recipe.getFormattedTime());
+        timeLabel.setFont(getLexendFont(Font.PLAIN, 13));
+        timeLabel.setForeground(new Color(100, 100, 100));
+        metaPanel.add(timeLabel);
+        
+        contentPanel.add(metaPanel);
+        contentPanel.add(Box.createVerticalStrut(8));
+        
+        // Ingredients count
+        int ingredientCount = recipe.getRawIngredientsText() != null ? 
+            recipe.getRawIngredientsText().split(",").length : 0;
+        JLabel ingredientsLabel = new JLabel(ingredientCount + " ingredients");
+        ingredientsLabel.setFont(getLexendFont(Font.PLAIN, 13));
+        ingredientsLabel.setForeground(DARK_GREEN);
+        ingredientsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(ingredientsLabel);
+        
+        contentPanel.add(Box.createVerticalStrut(15));
+        
+        // Buttons panel
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttonsPanel.setBackground(Color.WHITE);
+        buttonsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Add to Grocery button
+        JButton groceryButton = createOutlineButton("Add to Grocery");
+        groceryButton.setFont(getLexendFont(Font.PLAIN, 11));
+        groceryButton.addActionListener(e -> addRecipeToGroceryList(recipe));
+        buttonsPanel.add(groceryButton);
+        
+        // View Recipe button
+        JButton viewButton = createOutlineButton("View Recipe");
+        viewButton.setFont(getLexendFont(Font.PLAIN, 11));
+        viewButton.addActionListener(e -> showModernRecipeCard(recipe));
+        buttonsPanel.add(viewButton);
+        
+        // Add to My Recipes button
+        JButton addToMyBtn = createOutlineButton("+ My Recipes");
+        addToMyBtn.setFont(getLexendFont(Font.PLAIN, 11));
+        addToMyBtn.addActionListener(e -> addToMyRecipesAction(recipe));
+        buttonsPanel.add(addToMyBtn);
+        
+        // Delete button (red X)
+        JButton deleteButton = new JButton("X");
+        deleteButton.setFont(getLexendFont(Font.BOLD, 12));
+        deleteButton.setForeground(new Color(211, 47, 47));
+        deleteButton.setBackground(new Color(255, 235, 238));
+        deleteButton.setBorder(createRoundedBorder(new Color(211, 47, 47), 10, 6));
+        deleteButton.setFocusPainted(false);
+        deleteButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        deleteButton.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                "Remove '" + recipe.getName() + "' from your recipes?",
+                "Confirm Removal",
+                JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                recipeService.deleteRecipe(recipe.getId());
+                loadAllRecipes();
+            }
+        });
+        buttonsPanel.add(deleteButton);
+        
+        contentPanel.add(buttonsPanel);
+        
+        card.add(contentPanel, BorderLayout.CENTER);
+        
+        return card;
     }
     
     /**
-     * Displays recipe details in the text area with proper formatting.
+     * Adds recipe ingredients to grocery/shopping list.
      */
-    private void displayRecipeDetails(Recipe recipe) {
-        StringBuilder sb = new StringBuilder();
+    private void addRecipeToGroceryList(Recipe recipe) {
+        String ingredientsText = recipe.getRawIngredientsText();
         
-        // Recipe Title - handle long names with wrapping
-        sb.append("╔═══════════════════════════════════════════════════╗\n");
+        if (ingredientsText == null || ingredientsText.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "This recipe has no ingredients listed",
+                "No Ingredients",
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         
-        String recipeName = recipe.getName();
-        if (recipeName.length() <= 48) {
-            // Short name - center it
-            sb.append("║ ").append(centerText(recipeName, 50)).append(" ║\n");
-        } else {
-            // Long name - wrap to multiple lines and left-align for consistency
-            String[] wrappedLines = wrapRecipeTitle(recipeName, 48);
-            for (String line : wrappedLines) {
-                sb.append("║ ").append(padRight(line, 50)).append(" ║\n");
+        String[] ingredients = ingredientsText.split(",");
+        List<String> ingredientsList = new java.util.ArrayList<>();
+        
+        for (String ingredient : ingredients) {
+            String trimmed = ingredient.trim();
+            if (!trimmed.isEmpty()) {
+                ingredientsList.add(trimmed);
             }
         }
         
-        sb.append("╚═══════════════════════════════════════════════════╝\n\n");
+        shoppingList.put(recipe.getName(), ingredientsList);
         
-        // Basic Information
-        sb.append("┌─ BASIC INFORMATION ─────────────────────────────┐\n");
-        sb.append("│ Cuisine:       ").append(recipe.getCuisine()).append("\n");
-        sb.append("│ Cooking Time:  ").append(recipe.getFormattedTime()).append("\n");
-        sb.append("└─────────────────────────────────────────────────┘\n\n");
+        JOptionPane.showMessageDialog(this,
+            "Added " + ingredientsList.size() + " ingredients from:\n\"" + 
+            recipe.getName() + "\"\n\nClick 'View my ingredient list' to see all.",
+            "Added to Grocery List",
+            JOptionPane.INFORMATION_MESSAGE);
         
-        // Ingredients Section - with quantities
+        statusLabel.setText("Added " + ingredientsList.size() + " ingredients to grocery list");
+    }
+    
+    /**
+     * Adds a recipe to user's personal collection.
+     */
+    private void addToMyRecipesAction(Recipe recipe) {
+        // Create a copy of the recipe for the user
+        Recipe userRecipe = new Recipe.RecipeBuilder(recipe.getName())
+            .withCuisine(recipe.getCuisine())
+            .withCookingTime(recipe.getTotalTimeInMins())
+            .withDescription(recipe.getDescription())
+            .createdBy(currentUser.getId())
+            .build();
+        
+        userRecipe.setRawIngredientsText(recipe.getRawIngredientsText());
+        for (String instruction : recipe.getInstructions()) {
+            userRecipe.addInstruction(instruction);
+        }
+        
+        recipeService.saveRecipe(userRecipe);
+        
+        JOptionPane.showMessageDialog(this,
+            "'" + recipe.getName() + "' has been added to your recipes!\n\nClick 'View my recipes' to see your collection.",
+            "Added to My Recipes",
+            JOptionPane.INFORMATION_MESSAGE);
+        
+        statusLabel.setText("Added '" + recipe.getName() + "' to your recipes");
+    }
+    
+    /**
+     * Shows recipe in a modern card design dialog with green theme.
+     */
+    private void showModernRecipeCard(Recipe recipe) {
+        JDialog dialog = new JDialog(this, "Recipe Details", true);
+        dialog.setUndecorated(true); // Remove title bar (no duplicate close button)
+        dialog.setSize(550, 650);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+        
+        // Main panel with white background
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BorderLayout());
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(new EmptyBorder(25, 35, 25, 35));
+        
+        // Close button panel
+        JPanel closePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        closePanel.setBackground(Color.WHITE);
+        
+        JButton closeButton = new JButton("X");
+        closeButton.setFont(getLexendFont(Font.BOLD, 14));
+        closeButton.setForeground(new Color(100, 100, 100));
+        closeButton.setContentAreaFilled(false);
+        closeButton.setBorder(createRoundedBorder(new Color(180, 180, 180), 10, 5));
+        closeButton.setPreferredSize(new Dimension(35, 35));
+        closeButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        closeButton.setFocusPainted(false);
+        closeButton.addActionListener(e -> dialog.dispose());
+        closePanel.add(closeButton);
+        
+        mainPanel.add(closePanel, BorderLayout.NORTH);
+        
+        // Content panel with scroll
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        
+        // Recipe Title
+        JLabel titleLabel = new JLabel(recipe.getName());
+        titleLabel.setFont(getLexendFont(Font.BOLD, 26));
+        titleLabel.setForeground(new Color(33, 33, 33));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(titleLabel);
+        contentPanel.add(Box.createVerticalStrut(10));
+        
+        // Time
+        JLabel timeLabel = new JLabel(recipe.getFormattedTime());
+        timeLabel.setFont(getLexendFont(Font.PLAIN, 14));
+        timeLabel.setForeground(new Color(100, 100, 100));
+        timeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(timeLabel);
+        contentPanel.add(Box.createVerticalStrut(25));
+        
+        // Ingredients Section
+        JLabel ingredientsTitle = new JLabel("Ingredients");
+        ingredientsTitle.setFont(getLexendFont(Font.BOLD, 18));
+        ingredientsTitle.setForeground(new Color(33, 33, 33));
+        ingredientsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(ingredientsTitle);
+        contentPanel.add(Box.createVerticalStrut(12));
+        
+        // Ingredients list with green bullets
         if (recipe.getRawIngredientsText() != null && !recipe.getRawIngredientsText().isEmpty()) {
-            sb.append("┌─ INGREDIENTS (with quantities) ─────────────────┐\n");
-            
-            // Split ingredients by comma - preserve quantities
             String[] ingredients = recipe.getRawIngredientsText().split(",");
-            for (int i = 0; i < ingredients.length; i++) {
-                String ingredient = ingredients[i].trim();
-                if (!ingredient.isEmpty()) {
-                    // Display with quantity included
-                    sb.append("│ • ").append(ingredient).append("\n");
+            for (String ingredient : ingredients) {
+                if (!ingredient.trim().isEmpty()) {
+                    JPanel ingredientPanel = createGreenIngredientItem(ingredient.trim());
+                    ingredientPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    contentPanel.add(ingredientPanel);
+                    contentPanel.add(Box.createVerticalStrut(10));
                 }
             }
-            sb.append("└─────────────────────────────────────────────────┘\n\n");
         }
+        
+        contentPanel.add(Box.createVerticalStrut(20));
+        
+        // Separator line
+        JSeparator separator = new JSeparator();
+        separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        separator.setForeground(new Color(220, 220, 220));
+        contentPanel.add(separator);
+        contentPanel.add(Box.createVerticalStrut(20));
         
         // Instructions Section
-        if (!recipe.getInstructions().isEmpty()) {
-            sb.append("┌─ COOKING INSTRUCTIONS ──────────────────────────┐\n");
-            List<String> instructions = recipe.getInstructions();
-            for (int i = 0; i < instructions.size(); i++) {
-                String instruction = instructions.get(i).trim();
-                if (!instruction.isEmpty()) {
-                    sb.append("│\n");
-                    sb.append("│ Step ").append(i + 1).append(":\n");
-                    sb.append("│ ").append(wrapText(instruction, 50)).append("\n");
-                }
-            }
-            sb.append("└─────────────────────────────────────────────────┘\n");
+        JLabel instructionsTitle = new JLabel("Instructions");
+        instructionsTitle.setFont(getLexendFont(Font.BOLD, 18));
+        instructionsTitle.setForeground(new Color(33, 33, 33));
+        instructionsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(instructionsTitle);
+        contentPanel.add(Box.createVerticalStrut(15));
+        
+        // Instructions with numbered circles
+        List<String> instructions = recipe.getInstructions();
+        for (int i = 0; i < instructions.size(); i++) {
+            JPanel instructionPanel = createInstructionItem(i + 1, instructions.get(i));
+            instructionPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            contentPanel.add(instructionPanel);
+            contentPanel.add(Box.createVerticalStrut(12));
         }
         
-        recipeDetailsArea.setText(sb.toString());
-        recipeDetailsArea.setCaretPosition(0);
+        // Add scroll pane
+        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        dialog.add(mainPanel);
+        dialog.setVisible(true);
     }
     
     /**
-     * Wraps recipe title to multiple lines.
+     * Creates an ingredient item with green bullet point.
      */
-    private String[] wrapRecipeTitle(String title, int maxWidth) {
-        if (title.length() <= maxWidth) {
-            return new String[] { title };
-        }
+    private JPanel createGreenIngredientItem(String ingredient) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        panel.setBackground(Color.WHITE);
         
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        String[] words = title.split(" ");
-        StringBuilder currentLine = new StringBuilder();
+        // Green bullet
+        JLabel bullet = new JLabel("●");
+        bullet.setFont(new Font("Arial", Font.PLAIN, 10));
+        bullet.setForeground(DARK_GREEN);
+        panel.add(bullet);
         
-        for (String word : words) {
-            if (currentLine.length() + word.length() + 1 <= maxWidth) {
-                if (currentLine.length() > 0) {
-                    currentLine.append(" ");
-                }
-                currentLine.append(word);
-            } else {
-                if (currentLine.length() > 0) {
-                    lines.add(currentLine.toString());
-                    currentLine = new StringBuilder(word);
-                } else {
-                    // Word itself is too long, truncate it
-                    lines.add(word.substring(0, maxWidth));
-                    currentLine = new StringBuilder();
-                }
-            }
-        }
+        panel.add(Box.createHorizontalStrut(12));
         
-        if (currentLine.length() > 0) {
-            lines.add(currentLine.toString());
-        }
+        // Ingredient text
+        JLabel text = new JLabel(ingredient);
+        text.setFont(getLexendFont(Font.PLAIN, 14));
+        text.setForeground(new Color(80, 80, 80));
+        panel.add(text);
         
-        return lines.toArray(new String[0]);
+        return panel;
     }
     
     /**
-     * Pads text on the right to specified width (left-aligned).
+     * Creates an instruction item with green numbered circle.
      */
-    private String padRight(String text, int width) {
-        if (text.length() >= width) {
-            return text.substring(0, width);
-        }
+    private JPanel createInstructionItem(int number, String instruction) {
+        JPanel panel = new JPanel(new BorderLayout(12, 0));
+        panel.setBackground(Color.WHITE);
         
-        StringBuilder sb = new StringBuilder(text);
-        while (sb.length() < width) {
-            sb.append(" ");
-        }
-        return sb.toString();
-    }
-    
-    /**
-     * Centers text for display.
-     */
-    private String centerText(String text, int width) {
-        if (text.length() >= width) {
-            return text.substring(0, width);
-        }
-        int leftPadding = (width - text.length()) / 2;
-        int rightPadding = width - text.length() - leftPadding;
-        
-        StringBuilder sb = new StringBuilder();
-        
-        // Add left padding
-        for (int i = 0; i < leftPadding; i++) {
-            sb.append(" ");
-        }
-        
-        // Add text
-        sb.append(text);
-        
-        // Add right padding
-        for (int i = 0; i < rightPadding; i++) {
-            sb.append(" ");
-        }
-        
-        return sb.toString();
-    }
-    
-    /**
-     * Wraps text to specified width.
-     */
-    private String wrapText(String text, int width) {
-        if (text.length() <= width) {
-            return text;
-        }
-        
-        StringBuilder sb = new StringBuilder();
-        String[] words = text.split(" ");
-        int lineLength = 0;
-        
-        for (String word : words) {
-            if (lineLength + word.length() + 1 > width) {
-                sb.append("\n│ ");
-                lineLength = 0;
+        // Green numbered circle
+        JPanel circlePanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(DARK_GREEN);
+                g2.fillOval(0, 0, 28, 28);
+                g2.setColor(Color.WHITE);
+                g2.setFont(getLexendFont(Font.BOLD, 13));
+                FontMetrics fm = g2.getFontMetrics();
+                String num = String.valueOf(number);
+                int x = (28 - fm.stringWidth(num)) / 2;
+                int y = ((28 - fm.getHeight()) / 2) + fm.getAscent();
+                g2.drawString(num, x, y);
             }
-            if (lineLength > 0) {
-                sb.append(" ");
-                lineLength++;
-            }
-            sb.append(word);
-            lineLength += word.length();
-        }
+        };
+        circlePanel.setPreferredSize(new Dimension(28, 28));
+        circlePanel.setMinimumSize(new Dimension(28, 28));
+        circlePanel.setMaximumSize(new Dimension(28, 28));
+        circlePanel.setBackground(Color.WHITE);
         
-        return sb.toString();
+        panel.add(circlePanel, BorderLayout.WEST);
+        
+        // Instruction text
+        JLabel textLabel = new JLabel(instruction);
+        textLabel.setFont(getLexendFont(Font.PLAIN, 14));
+        textLabel.setForeground(new Color(80, 80, 80));
+        panel.add(textLabel, BorderLayout.CENTER);
+        
+        return panel;
     }
     
     /**
@@ -735,7 +997,6 @@ public class SimpleSwingApp extends JFrame {
      * Shows only user's recipes.
      */
     private void showMyRecipes() {
-        viewingMyRecipes = true;
         List<Recipe> myRecipes = recipeService.getUserRecipes(currentUser.getId());
         allRecipes = myRecipes;
         updateRecipeList(myRecipes);
@@ -751,37 +1012,6 @@ public class SimpleSwingApp extends JFrame {
         // Show remove button in My Recipes view
         if (removeRecipeBtn != null) {
             removeRecipeBtn.setVisible(true);
-        }
-    }
-    
-    /**
-     * Removes the selected recipe from My Recipes.
-     */
-    private void removeFromMyRecipes() {
-        int index = recipeList.getSelectedIndex();
-        if (index < 0 || index >= allRecipes.size()) {
-            statusLabel.setText("Please select a recipe to remove");
-            return;
-        }
-        
-        Recipe recipe = allRecipes.get(index);
-        
-        // Confirm deletion
-        int confirm = JOptionPane.showConfirmDialog(this,
-            "Remove '" + recipe.getName() + "' from your recipes?",
-            "Confirm Removal",
-            JOptionPane.YES_NO_OPTION);
-        
-        if (confirm == JOptionPane.YES_OPTION) {
-            boolean success = recipeService.deleteRecipe(recipe.getId());
-            
-            if (success) {
-                statusLabel.setText("Recipe removed successfully");
-                // Refresh the My Recipes view
-                showMyRecipes();
-            } else {
-                statusLabel.setText("Failed to remove recipe");
-            }
         }
     }
     
@@ -842,8 +1072,7 @@ public class SimpleSwingApp extends JFrame {
         if (confirm == JOptionPane.YES_OPTION) {
             setVisible(false);
             currentUser = null;
-            recipeListModel.clear();
-            recipeDetailsArea.setText("");
+            recipeCardsPanel.removeAll();
             showLoginDialog();
         }
     }
@@ -866,177 +1095,181 @@ public class SimpleSwingApp extends JFrame {
     }
     
     /**
-     * Adds the currently selected recipe to user's recipe collection.
-     * Demonstrates copying recipes and user-specific data.
-     */
-    private void addToMyRecipes() {
-        int index = recipeList.getSelectedIndex();
-        if (index < 0 || index >= allRecipes.size()) {
-            JOptionPane.showMessageDialog(this,
-                "Please select a recipe first",
-                "No Recipe Selected",
-                JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        
-        Recipe selectedRecipe = allRecipes.get(index);
-        
-        // Create a copy of the recipe for the user
-        Recipe userRecipe = new Recipe();
-        userRecipe.setName(selectedRecipe.getName() + " (My Copy)");
-        userRecipe.setCuisine(selectedRecipe.getCuisine());
-        userRecipe.setTotalTimeInMins(selectedRecipe.getTotalTimeInMins());
-        userRecipe.setRawIngredientsText(selectedRecipe.getRawIngredientsText());
-        userRecipe.setCreatedBy(currentUser.getId());
-        
-        // Copy instructions
-        for (String instruction : selectedRecipe.getInstructions()) {
-            userRecipe.addInstruction(instruction);
-        }
-        
-        // Save to repository
-        recipeService.saveRecipe(userRecipe);
-        
-        JOptionPane.showMessageDialog(this,
-            "Recipe added to your collection!",
-            "Success",
-            JOptionPane.INFORMATION_MESSAGE);
-        
-        statusLabel.setText("Added '" + selectedRecipe.getName() + "' to My Recipes");
-    }
-    
-    /**
-     * Adds ingredients from the selected recipe to the persistent shopping list.
-     * Multiple recipes can be added and ingredients are organized by recipe name.
-     */
-    private void addIngredientsToList() {
-        int index = recipeList.getSelectedIndex();
-        if (index < 0 || index >= allRecipes.size()) {
-            JOptionPane.showMessageDialog(this,
-                "Please select a recipe first",
-                "No Recipe Selected",
-                JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        
-        Recipe selectedRecipe = allRecipes.get(index);
-        String ingredientsText = selectedRecipe.getRawIngredientsText();
-        
-        if (ingredientsText == null || ingredientsText.trim().isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                "This recipe has no ingredients listed",
-                "No Ingredients",
-                JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        
-        // Parse ingredients and add to shopping list
-        String[] ingredients = ingredientsText.split(",");
-        List<String> ingredientsList = new java.util.ArrayList<>();
-        
-        for (String ingredient : ingredients) {
-            String trimmed = ingredient.trim();
-            if (!trimmed.isEmpty()) {
-                ingredientsList.add(trimmed);
-            }
-        }
-        
-        // Add to shopping list map (organized by recipe name)
-        shoppingList.put(selectedRecipe.getName(), ingredientsList);
-        
-        // Show confirmation
-        JOptionPane.showMessageDialog(this,
-            "Added " + ingredientsList.size() + " ingredients from:\n\"" + 
-            selectedRecipe.getName() + "\"\n\nClick 'View Shopping List' to see all ingredients.",
-            "Added to Shopping List",
-            JOptionPane.INFORMATION_MESSAGE);
-        
-        statusLabel.setText("Added " + ingredientsList.size() + " ingredients from '" + 
-                          selectedRecipe.getName() + "' to shopping list");
-    }
-    
-    /**
-     * Displays the accumulated shopping list with ingredients separated by recipe.
-     * Demonstrates Map usage and organized data display.
+     * Displays the shopping list in a modern mint-themed dialog.
      */
     private void viewShoppingList() {
         if (shoppingList.isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                "Shopping list is empty.\n\nSelect a recipe and click 'Add Ingredients to List' to add items.",
+                "Shopping list is empty.\n\nClick 'Add to Grocery' on any recipe to add ingredients.",
                 "Empty Shopping List",
                 JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         
-        // Build shopping list display
-        StringBuilder listDisplay = new StringBuilder();
-        listDisplay.append("╔════════════════════════════════════════════════╗\n");
-        listDisplay.append("║      SHOPPING LIST - MULTIPLE RECIPES          ║\n");
-        listDisplay.append("╚════════════════════════════════════════════════╝\n\n");
+        // Create modern dialog
+        JDialog dialog = new JDialog(this, "My Ingredient List", true);
+        dialog.setSize(500, 600);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+        
+        // Main panel with mint background
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(MINT_BG);
+        mainPanel.setBorder(new EmptyBorder(25, 30, 25, 30));
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(MINT_BG);
+        
+        JLabel titleLabel = new JLabel("Ingredient List");
+        titleLabel.setFont(getLexendFont(Font.BOLD, 24));
+        titleLabel.setForeground(new Color(33, 33, 33));
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        // Close button
+        JButton closeBtn = new JButton("X");
+        closeBtn.setFont(getLexendFont(Font.BOLD, 14));
+        closeBtn.setForeground(new Color(100, 100, 100));
+        closeBtn.setContentAreaFilled(false);
+        closeBtn.setBorder(createRoundedBorder(new Color(180, 180, 180), 10, 5));
+        closeBtn.setPreferredSize(new Dimension(35, 35));
+        closeBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        closeBtn.setFocusPainted(false);
+        closeBtn.addActionListener(e -> dialog.dispose());
+        headerPanel.add(closeBtn, BorderLayout.EAST);
+        
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Content panel
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(MINT_BG);
+        contentPanel.setBorder(new EmptyBorder(20, 0, 20, 0));
         
         int totalItems = 0;
-        int recipeCount = 0;
         
-        // Display ingredients organized by recipe
+        // Display ingredients organized by recipe in cards
         for (java.util.Map.Entry<String, List<String>> entry : shoppingList.entrySet()) {
-            recipeCount++;
             String recipeName = entry.getKey();
             List<String> ingredients = entry.getValue();
             
-            listDisplay.append("┌─ RECIPE ").append(recipeCount).append(": ");
-            listDisplay.append(recipeName).append("\n");
-            listDisplay.append("└─────────────────────────────────────────────────\n");
+            // Recipe card
+            JPanel recipeCard = new JPanel();
+            recipeCard.setLayout(new BoxLayout(recipeCard, BoxLayout.Y_AXIS));
+            recipeCard.setBackground(Color.WHITE);
+            recipeCard.setBorder(createRoundedBorder(new Color(220, 220, 220), 15, 15));
+            recipeCard.setAlignmentX(Component.LEFT_ALIGNMENT);
             
+            // Recipe name
+            JLabel recipeLabel = new JLabel(recipeName);
+            recipeLabel.setFont(getLexendFont(Font.BOLD, 16));
+            recipeLabel.setForeground(DARK_GREEN);
+            recipeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            recipeCard.add(recipeLabel);
+            recipeCard.add(Box.createVerticalStrut(10));
+            
+            // Ingredients
             for (String ingredient : ingredients) {
-                listDisplay.append("  ☐ ").append(ingredient).append("\n");
+                JPanel ingredientRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 2));
+                ingredientRow.setBackground(Color.WHITE);
+                ingredientRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+                
+                JLabel bullet = new JLabel("*");
+                bullet.setFont(getLexendFont(Font.BOLD, 12));
+                bullet.setForeground(DARK_GREEN);
+                ingredientRow.add(bullet);
+                ingredientRow.add(Box.createHorizontalStrut(10));
+                
+                JLabel ingredientLabel = new JLabel(ingredient);
+                ingredientLabel.setFont(getLexendFont(Font.PLAIN, 13));
+                ingredientLabel.setForeground(new Color(80, 80, 80));
+                ingredientRow.add(ingredientLabel);
+                
+                recipeCard.add(ingredientRow);
                 totalItems++;
             }
             
-            listDisplay.append("\n");
+            contentPanel.add(recipeCard);
+            contentPanel.add(Box.createVerticalStrut(15));
         }
         
-        listDisplay.append("═══════════════════════════════════════════════\n");
-        listDisplay.append("Total Recipes: ").append(recipeCount).append("\n");
-        listDisplay.append("Total Ingredients: ").append(totalItems).append("\n");
-        listDisplay.append("═══════════════════════════════════════════════");
+        // Scroll pane
+        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.getViewport().setBackground(MINT_BG);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
         
-        // Create dialog with shopping list
-        JTextArea textArea = new JTextArea(listDisplay.toString());
-        textArea.setEditable(false);
-        textArea.setLineWrap(false);
-        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(600, 500));
+        // Footer with summary and clear button
+        JPanel footerPanel = new JPanel(new BorderLayout());
+        footerPanel.setBackground(MINT_BG);
+        footerPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
         
-        // Create panel with buttons
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(scrollPane, BorderLayout.CENTER);
+        JLabel summaryLabel = new JLabel("Total: " + totalItems + " ingredients from " + shoppingList.size() + " recipe(s)");
+        summaryLabel.setFont(getLexendFont(Font.PLAIN, 13));
+        summaryLabel.setForeground(new Color(100, 100, 100));
+        footerPanel.add(summaryLabel, BorderLayout.WEST);
         
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        JButton clearButton = new JButton("Clear Shopping List");
+        JButton clearButton = createOutlineButton("Clear All");
+        clearButton.setForeground(new Color(211, 47, 47));
         clearButton.addActionListener(e -> {
-            int confirm = JOptionPane.showConfirmDialog(this,
+            int confirm = JOptionPane.showConfirmDialog(dialog,
                 "Clear all items from shopping list?",
                 "Confirm Clear",
                 JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 shoppingList.clear();
-                JOptionPane.showMessageDialog(this,
-                    "Shopping list cleared!",
-                    "Cleared",
-                    JOptionPane.INFORMATION_MESSAGE);
-                Window window = SwingUtilities.getWindowAncestor(clearButton);
-                if (window != null) {
-                    window.dispose();
-                }
+                dialog.dispose();
+                statusLabel.setText("Shopping list cleared");
             }
         });
-        buttonPanel.add(clearButton);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
+        footerPanel.add(clearButton, BorderLayout.EAST);
         
-        JOptionPane.showMessageDialog(this,
-            panel,
-            "Shopping List - " + recipeCount + " Recipe(s)",
-            JOptionPane.PLAIN_MESSAGE);
+        mainPanel.add(footerPanel, BorderLayout.SOUTH);
+        
+        dialog.add(mainPanel);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Creates a rounded border with specified color and radius.
+     */
+    private static javax.swing.border.Border createRoundedBorder(Color color, int radius, int padding) {
+        return BorderFactory.createCompoundBorder(
+            new RoundedBorder(color, radius),
+            new EmptyBorder(padding, padding, padding, padding)
+        );
+    }
+    
+    /**
+     * Custom rounded border implementation.
+     */
+    private static class RoundedBorder extends javax.swing.border.AbstractBorder {
+        private Color color;
+        private int radius;
+        
+        public RoundedBorder(Color color, int radius) {
+            this.color = color;
+            this.radius = radius;
+        }
+        
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(color);
+            g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+            g2.dispose();
+        }
+        
+        @Override
+        public Insets getBorderInsets(Component c) {
+            return new Insets(2, 2, 2, 2);
+        }
+        
+        @Override
+        public boolean isBorderOpaque() {
+            return false;
+        }
     }
 }

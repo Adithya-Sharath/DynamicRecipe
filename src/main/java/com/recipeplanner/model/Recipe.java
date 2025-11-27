@@ -169,13 +169,9 @@ public class Recipe implements Searchable {
         this.instructions = instructions != null ? instructions : new ArrayList<>();
     }
 
-    public List<IngredientQuantity> getIngredients() {
-        return ingredients;
-    }
-
-    public void setIngredients(List<IngredientQuantity> ingredients) {
-        this.ingredients = ingredients != null ? ingredients : new ArrayList<>();
-    }
+    // Note: Using rawIngredientsText instead of structured IngredientQuantity list
+    // public List<IngredientQuantity> getIngredients() { return ingredients; }
+    // public void setIngredients(List<IngredientQuantity> ingredients) { ... }
 
     // Business Methods
 
@@ -190,27 +186,9 @@ public class Recipe implements Searchable {
         }
     }
 
-    /**
-     * Adds an ingredient with quantity to the recipe.
-     * 
-     * @param ingredientQuantity The ingredient with measurement
-     */
-    public void addIngredient(IngredientQuantity ingredientQuantity) {
-        if (ingredientQuantity != null) {
-            this.ingredients.add(ingredientQuantity);
-        }
-    }
-
-    /**
-     * Adds an ingredient without specific quantity (for dataset recipes).
-     * 
-     * @param ingredient The ingredient to add
-     */
-    public void addIngredient(Ingredient ingredient) {
-        if (ingredient != null) {
-            this.ingredients.add(new IngredientQuantity(ingredient));
-        }
-    }
+    // Note: Ingredient methods removed - using rawIngredientsText instead
+    // public void addIngredient(IngredientQuantity ingredientQuantity) { ... }
+    // public void addIngredient(Ingredient ingredient) { ... }
 
     /**
      * Checks if the recipe has all required fields to be considered complete.
@@ -220,7 +198,7 @@ public class Recipe implements Searchable {
     public boolean isComplete() {
         return name != null && !name.trim().isEmpty() &&
                !instructions.isEmpty() &&
-               !ingredients.isEmpty();
+               rawIngredientsText != null && !rawIngredientsText.isEmpty();
     }
 
     /**
@@ -229,7 +207,10 @@ public class Recipe implements Searchable {
      * @return The number of ingredients
      */
     public int getIngredientCount() {
-        return ingredients.size();
+        if (rawIngredientsText == null || rawIngredientsText.isEmpty()) {
+            return 0;
+        }
+        return rawIngredientsText.split(",").length;
     }
 
     /**
@@ -293,18 +274,11 @@ public class Recipe implements Searchable {
             sb.append(" (").append(cuisine).append(")");
         }
         sb.append(" - ").append(getFormattedTime());
-        sb.append(" - ").append(ingredients.size()).append(" ingredients");
+        sb.append(" - ").append(getIngredientCount()).append(" ingredients");
         return sb.toString();
     }
 
-    /**
-     * Gets an unmodifiable view of the ingredients list.
-     * 
-     * @return Unmodifiable list of ingredients
-     */
-    public List<IngredientQuantity> getIngredientsReadOnly() {
-        return Collections.unmodifiableList(ingredients);
-    }
+    // Note: getIngredientsReadOnly() removed - using rawIngredientsText instead
 
     /**
      * Gets an unmodifiable view of the instructions list.
@@ -325,7 +299,6 @@ public class Recipe implements Searchable {
      * @param searchTerm The term to search for
      * @return true if the recipe matches the search term
      */
-    @Override
     public boolean matches(String searchTerm) {
         if (searchTerm == null || searchTerm.trim().isEmpty()) {
             return false;
@@ -361,17 +334,35 @@ public class Recipe implements Searchable {
     public String getSearchDisplayText() {
         return String.format("%s (%s) - %s - %d ingredients", 
             name, cuisine != null ? cuisine : "Unknown", 
-            getFormattedTime(), ingredients.size());
+            getFormattedTime(), getIngredientCount());
+    }
+    
+    /**
+     * Returns a list of keywords that this recipe can be searched by.
+     * Implements Searchable interface.
+     * 
+     * @return List of search keywords
+     */
+    @Override
+    public List<String> getSearchKeywords() {
+        List<String> keywords = new ArrayList<>();
+        if (name != null) keywords.add(name.toLowerCase());
+        if (cuisine != null) keywords.add(cuisine.toLowerCase());
+        if (rawIngredientsText != null) {
+            for (String ingredient : rawIngredientsText.split(",")) {
+                keywords.add(ingredient.trim().toLowerCase());
+            }
+        }
+        return keywords;
     }
     
     /**
      * Gets the relevance score for a given search term.
-     * Demonstrates INTERFACE implementation (Module 6).
+     * Useful for ranking search results.
      * 
      * @param searchTerm The search term
      * @return Relevance score (0-100)
      */
-    @Override
     public int getRelevanceScore(String searchTerm) {
         if (searchTerm == null || searchTerm.trim().isEmpty()) {
             return 0;
@@ -478,16 +469,7 @@ public class Recipe implements Searchable {
             return this;
         }
         
-        /**
-         * Adds an ingredient.
-         * 
-         * @param ingredient The ingredient to add
-         * @return This builder for method chaining
-         */
-        public RecipeBuilder addIngredient(IngredientQuantity ingredient) {
-            recipe.addIngredient(ingredient);
-            return this;
-        }
+        // Note: addIngredient(IngredientQuantity) removed - using rawIngredientsText instead
         
         /**
          * Builds and returns the Recipe object.
@@ -519,7 +501,7 @@ public class Recipe implements Searchable {
                 ", name='" + name + '\'' +
                 ", cuisine='" + cuisine + '\'' +
                 ", totalTimeInMins=" + totalTimeInMins +
-                ", ingredientCount=" + ingredients.size() +
+                ", ingredientCount=" + getIngredientCount() +
                 ", instructionCount=" + instructions.size() +
                 '}';
     }
